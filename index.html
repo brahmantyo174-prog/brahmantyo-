@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lomba Kemerdekaan 🇮🇩</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <span class="logo-flag">🇮🇩</span>
+        <div>
+          <div class="logo-title">LOMBA KEMERDEKAAN</div>
+          <div class="logo-sub">Karang Taruna — Turnamen Digital</div>
+        </div>
+      </div>
+      <!-- Tab Navigation -->
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="futsal" onclick="switchTab('futsal')">
+          ⚽ Futsal
+        </button>
+        <button class="tab-btn" data-tab="basket" onclick="switchTab('basket')">
+          🏀 Basket
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="app-main">
+
+    <!-- ==================== FUTSAL TAB ==================== -->
+    <section id="tab-futsal" class="tab-section active">
+
+      <!-- Step Indicator -->
+      <div class="step-bar">
+        <div class="step active" id="step-futsal-1">1 Tim</div>
+        <div class="step-line"></div>
+        <div class="step" id="step-futsal-2">2 Bracket</div>
+        <div class="step-line"></div>
+        <div class="step" id="step-futsal-3">3 Skor</div>
+      </div>
+
+      <!-- PANEL 1: Team Management -->
+      <div class="panel" id="panel-futsal-teams">
+        <div class="panel-header">
+          <h2 class="panel-title">⚽ Manajemen Tim Futsal</h2>
+          <span class="team-count-badge" id="futsal-team-count">0 Tim</span>
+        </div>
+
+        <!-- Add Team Form -->
+        <div class="add-team-form">
+          <input type="text" id="futsal-team-name" placeholder="Nama Tim (cth: Garuda FC)" class="input-field" maxlength="30" />
+          <input type="text" id="futsal-players" placeholder="Pemain: Ali, Budi, Chandra..." class="input-field" maxlength="100" />
+          <button class="btn btn-primary" onclick="addTeam('futsal')">+ Tambah Tim</button>
+        </div>
+
+        <!-- Team List -->
+        <div class="team-list" id="futsal-team-list">
+          <!-- rendered by JS -->
+        </div>
+
+        <!-- Generate Bracket -->
+        <div class="panel-footer">
+          <button class="btn btn-accent" onclick="generateBracket('futsal')" id="btn-gen-futsal">🔀 Buat Bagan Bracket</button>
+        </div>
+      </div>
+
+      <!-- PANEL 2: Bracket -->
+      <div class="panel hidden" id="panel-futsal-bracket">
+        <div class="panel-header">
+          <h2 class="panel-title">🏆 Bracket Futsal</h2>
+          <button class="btn btn-sm btn-ghost" onclick="showPanel('futsal','teams')">← Edit Tim</button>
+        </div>
+        <div class="bracket-list" id="futsal-bracket-list"></div>
+        <div class="panel-footer">
+          <button class="btn btn-accent" onclick="showPanel('futsal','scores')">▶ Mulai Pertandingan</button>
+        </div>
+      </div>
+
+      <!-- PANEL 3: Scoreboard -->
+      <div class="panel hidden" id="panel-futsal-scores">
+        <div class="panel-header">
+          <h2 class="panel-title">🧮 Scoreboard Futsal</h2>
+          <button class="btn btn-sm btn-ghost" onclick="showPanel('futsal','bracket')">← Bracket</button>
+        </div>
+        <div class="scoreboard-list" id="futsal-scoreboard-list"></div>
+      </div>
+
+    </section>
+
+    <!-- ==================== BASKET TAB ==================== -->
+    <section id="tab-basket" class="tab-section hidden">
+
+      <div class="step-bar">
+        <div class="step active" id="step-basket-1">1 Tim</div>
+        <div class="step-line"></div>
+        <div class="step" id="step-basket-2">2 Bracket</div>
+        <div class="step-line"></div>
+        <div class="step" id="step-basket-3">3 Skor</div>
+      </div>
+
+      <!-- PANEL 1: Team Management -->
+      <div class="panel" id="panel-basket-teams">
+        <div class="panel-header">
+          <h2 class="panel-title">🏀 Manajemen Tim Basket</h2>
+          <span class="team-count-badge" id="basket-team-count">0 Tim</span>
+        </div>
+        <div class="add-team-form">
+          <input type="text" id="basket-team-name" placeholder="Nama Tim (cth: Rajawali BC)" class="input-field" maxlength="30" />
+          <input type="text" id="basket-players" placeholder="Pemain: Dani, Eko, Fajar..." class="input-field" maxlength="100" />
+          <button class="btn btn-primary" onclick="addTeam('basket')">+ Tambah Tim</button>
+        </div>
+        <div class="team-list" id="basket-team-list"></div>
+        <div class="panel-footer">
+          <button class="btn btn-accent" onclick="generateBracket('basket')" id="btn-gen-basket">🔀 Buat Bagan Bracket</button>
+        </div>
+      </div>
+
+      <!-- PANEL 2: Bracket -->
+      <div class="panel hidden" id="panel-basket-bracket">
+        <div class="panel-header">
+          <h2 class="panel-title">🏆 Bracket Basket</h2>
+          <button class="btn btn-sm btn-ghost" onclick="showPanel('basket','teams')">← Edit Tim</button>
+        </div>
+        <div class="bracket-list" id="basket-bracket-list"></div>
+        <div class="panel-footer">
+          <button class="btn btn-accent" onclick="showPanel('basket','scores')">▶ Mulai Pertandingan</button>
+        </div>
+      </div>
+
+      <!-- PANEL 3: Scoreboard -->
+      <div class="panel hidden" id="panel-basket-scores">
+        <div class="panel-header">
+          <h2 class="panel-title">🧮 Scoreboard Basket</h2>
+          <button class="btn btn-sm btn-ghost" onclick="showPanel('basket','bracket')">← Bracket</button>
+        </div>
+        <div class="scoreboard-list" id="basket-scoreboard-list"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toast"></div>
+
+  <!-- RESET BUTTON -->
+  <button class="reset-btn" onclick="confirmReset()" title="Reset Semua Data">🗑️</button>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
