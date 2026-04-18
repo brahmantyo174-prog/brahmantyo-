@@ -1,0 +1,418 @@
+/**
+ * LOMBA KEMERDEKAAN APP — script.js
+ * SPA Turnamen Futsal & Basket | Karang Taruna
+ * localStorage-based, no internet needed
+ */
+
+// =============================================
+//  STATE MANAGEMENT
+// =============================================
+
+const STATE_KEY = 'lomba_kemerdekaan_v1';
+
+let state = {
+  futsal: { teams: [], bracket: [], scores: {} },
+  basket: { teams: [], bracket: [], scores: {} }
+};
+
+let currentTab = 'futsal';
+
+// =============================================
+//  PERSISTENCE
+// =============================================
+
+function saveState() {
+  localStorage.setItem(STATE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+  const saved = localStorage.getItem(STATE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      // merge safely
+      state.futsal = { ...state.futsal, ...parsed.futsal };
+      state.basket = { ...state.basket, ...parsed.basket };
+    } catch (e) {
+      console.warn('State corrupt, reset.', e);
+    }
+  }
+}
+
+// =============================================
+//  TAB SWITCHING
+// =============================================
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.remove('hidden');
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+}
+
+// =============================================
+//  PANEL SWITCHING
+// =============================================
+
+function showPanel(sport, panel) {
+  const panels = ['teams', 'bracket', 'scores'];
+  panels.forEach(p => {
+    const el = document.getElementById(`panel-${sport}-${p}`);
+    if (el) el.classList.add('hidden');
+  });
+  const target = document.getElementById(`panel-${sport}-${panel}`);
+  if (target) target.classList.remove('hidden');
+
+  // Update step indicators
+  const stepMap = { teams: 1, bracket: 2, scores: 3 };
+  for (let i = 1; i <= 3; i++) {
+    const stepEl = document.getElementById(`step-${sport}-${i}`);
+    if (stepEl) stepEl.classList.toggle('active', i === stepMap[panel]);
+  }
+}
+
+// =============================================
+//  TEAM MANAGEMENT
+// =============================================
+
+function addTeam(sport) {
+  const nameInput = document.getElementById(`${sport}-team-name`);
+  const playersInput = document.getElementById(`${sport}-players`);
+
+  const name = nameInput.value.trim();
+  const players = playersInput.value.trim();
+
+  if (!name) {
+    showToast('⚠️ Nama tim tidak boleh kosong!');
+    nameInput.focus();
+    return;
+  }
+
+  // Check duplicate
+  const isDuplicate = state[sport].teams.some(
+    t => t.name.toLowerCase() === name.toLowerCase()
+  );
+  if (isDuplicate) {
+    showToast('⚠️ Nama tim sudah ada!');
+    nameInput.focus();
+    return;
+  }
+
+  const team = {
+    id: Date.now().toString(),
+    name,
+    players: players || '-'
+  };
+
+  state[sport].teams.push(team);
+  // Reset bracket/scores when teams change
+  state[sport].bracket = [];
+  state[sport].scores = {};
+
+  saveState();
+  renderTeamList(sport);
+  renderBracket(sport);
+  renderScoreboard(sport);
+
+  nameInput.value = '';
+  playersInput.value = '';
+  nameInput.focus();
+
+  showToast(`✅ Tim "${name}" ditambahkan!`);
+}
+
+function deleteTeam(sport, id) {
+  state[sport].teams = state[sport].teams.filter(t => t.id !== id);
+  state[sport].bracket = [];
+  state[sport].scores = {};
+  saveState();
+  renderTeamList(sport);
+  renderBracket(sport);
+  renderScoreboard(sport);
+  showToast('🗑️ Tim dihapus');
+}
+
+function renderTeamList(sport) {
+  const list = document.getElementById(`${sport}-team-list`);
+  const badge = document.getElementById(`${sport}-team-count`);
+  const teams = state[sport].teams;
+
+  badge.textContent = `${teams.length} Tim`;
+
+  if (teams.length === 0) {
+    list.innerHTML = `<div class="empty-state">Belum ada tim. Tambahkan tim di atas! 👆</div>`;
+    return;
+  }
+
+  list.innerHTML = teams.map((t, i) => `
+    <div class="team-card">
+      <div class="team-card-num">${String(i + 1).padStart(2, '0')}</div>
+      <div class="team-card-info">
+        <div class="team-card-name">${escHtml(t.name)}</div>
+        <div class="team-card-players">👤 ${escHtml(t.players)}</div>
+      </div>
+      <button class="btn-delete" onclick="deleteTeam('${sport}', '${t.id}')" title="Hapus Tim">×</button>
+    </div>
+  `).join('');
+}
+
+// =============================================
+//  BRACKET GENERATOR (Knockout)
+// =============================================
+
+function generateBracket(sport) {
+  const teams = state[sport].teams;
+
+  if (teams.length < 2) {
+    showToast('⚠️ Minimal 2 tim untuk membuat bracket!');
+    return;
+  }
+
+  // Shuffle teams
+  const shuffled = [...teams].sort(() => Math.random() - 0.5);
+
+  const matches = [];
+  for (let i = 0; i < shuffled.length; i += 2) {
+    const matchId = `m${i / 2 + 1}`;
+    if (i + 1 < shuffled.length) {
+      matches.push({
+        id: matchId,
+        teamA: shuffled[i],
+        teamB: shuffled[i + 1],
+        bye: false
+      });
+    } else {
+      // Odd team → BYE
+      matches.push({
+        id: matchId,
+        teamA: shuffled[i],
+        teamB: null,
+        bye: true
+      });
+    }
+  }
+
+  state[sport].bracket = matches;
+  // Init scores
+  const scores = {};
+  matches.forEach(m => {
+    if (!m.bye) {
+      scores[m.id] = { a: 0, b: 0 };
+    }
+  });
+  state[sport].scores = scores;
+
+  saveState();
+  renderBracket(sport);
+  renderScoreboard(sport);
+  showPanel(sport, 'bracket');
+  showToast(`🔀 Bracket dibuat! ${matches.length} pertandingan`);
+}
+
+function renderBracket(sport) {
+  const container = document.getElementById(`${sport}-bracket-list`);
+  const matches = state[sport].bracket;
+
+  if (!container) return;
+
+  if (matches.length === 0) {
+    container.innerHTML = `<div class="empty-state">Belum ada bracket. Tambah tim lalu klik "Buat Bagan"! 🏆</div>`;
+    return;
+  }
+
+  container.innerHTML = matches.map((m, i) => `
+    <div class="match-card">
+      <span class="match-num">M${i + 1}</span>
+      <div class="match-teams">
+        <span class="match-team">${escHtml(m.teamA.name)}</span>
+        ${m.bye
+          ? `<span class="bye-badge">BYE ✓</span>`
+          : `<span class="match-vs">VS</span>
+             <span class="match-team" style="text-align:right">${escHtml(m.teamB.name)}</span>`
+        }
+      </div>
+    </div>
+  `).join('');
+}
+
+// =============================================
+//  SCOREBOARD
+// =============================================
+
+function updateScore(sport, matchId, team, delta) {
+  const scores = state[sport].scores;
+  if (!scores[matchId]) scores[matchId] = { a: 0, b: 0 };
+
+  scores[matchId][team] = Math.max(0, scores[matchId][team] + delta);
+  saveState();
+  renderSingleScore(sport, matchId);
+}
+
+function resetScore(sport, matchId) {
+  state[sport].scores[matchId] = { a: 0, b: 0 };
+  saveState();
+  renderSingleScore(sport, matchId);
+  showToast('🔄 Skor direset');
+}
+
+function renderSingleScore(sport, matchId) {
+  const el = document.getElementById(`score-a-${matchId}`);
+  const elB = document.getElementById(`score-b-${matchId}`);
+  const scores = state[sport].scores[matchId] || { a: 0, b: 0 };
+  if (el) el.textContent = scores.a;
+  if (elB) elB.textContent = scores.b;
+
+  // Highlight leader
+  const cardA = document.getElementById(`score-num-a-${matchId}`);
+  const cardB = document.getElementById(`score-num-b-${matchId}`);
+  if (cardA && cardB) {
+    cardA.style.color = scores.a > scores.b ? 'var(--red)' : 'var(--dark)';
+    cardB.style.color = scores.b > scores.a ? 'var(--red)' : 'var(--dark)';
+  }
+}
+
+function renderScoreboard(sport) {
+  const container = document.getElementById(`${sport}-scoreboard-list`);
+  const matches = state[sport].bracket.filter(m => !m.bye);
+
+  if (!container) return;
+
+  if (matches.length === 0) {
+    container.innerHTML = `<div class="empty-state">Buat bracket dulu sebelum input skor! 🏆</div>`;
+    return;
+  }
+
+  container.innerHTML = matches.map((m, i) => {
+    const sc = state[sport].scores[m.id] || { a: 0, b: 0 };
+    return `
+      <div class="score-card" id="scorecard-${m.id}">
+        <div class="score-header">
+          <span class="score-match-label">PARTAI ${i + 1}</span>
+          <span class="score-status">🔴 LIVE</span>
+        </div>
+        <div class="score-body">
+
+          <!-- Team A -->
+          <div class="score-team">
+            <div class="score-team-name">${escHtml(m.teamA.name)}</div>
+            <div class="score-number" id="score-num-a-${m.id}">
+              <span id="score-a-${m.id}">${sc.a}</span>
+            </div>
+            <div class="score-controls">
+              <button class="btn-score btn-score-minus" onclick="updateScore('${sport}','${m.id}','a',-1)">−</button>
+              <button class="btn-score btn-score-plus" onclick="updateScore('${sport}','${m.id}','a',1)">+</button>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="score-divider">
+            <div class="score-vs">VS</div>
+            <div class="score-sep"></div>
+          </div>
+
+          <!-- Team B -->
+          <div class="score-team">
+            <div class="score-team-name">${escHtml(m.teamB.name)}</div>
+            <div class="score-number" id="score-num-b-${m.id}">
+              <span id="score-b-${m.id}">${sc.b}</span>
+            </div>
+            <div class="score-controls">
+              <button class="btn-score btn-score-minus" onclick="updateScore('${sport}','${m.id}','b',-1)">−</button>
+              <button class="btn-score btn-score-plus" onclick="updateScore('${sport}','${m.id}','b',1)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="score-footer">
+          <button class="btn-reset-score" onclick="resetScore('${sport}','${m.id}')">🔄 Reset Skor</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Apply color for leaders on initial render
+  matches.forEach(m => renderSingleScore(sport, m.id));
+}
+
+// =============================================
+//  TOAST NOTIFICATION
+// =============================================
+
+let toastTimer = null;
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+}
+
+// =============================================
+//  RESET ALL DATA
+// =============================================
+
+function confirmReset() {
+  if (confirm('⚠️ Hapus SEMUA data turnamen?\n\nData tim, bracket, dan skor akan hilang permanen.')) {
+    localStorage.removeItem(STATE_KEY);
+    state = {
+      futsal: { teams: [], bracket: [], scores: {} },
+      basket: { teams: [], bracket: [], scores: {} }
+    };
+    renderAll();
+    showToast('🗑️ Semua data dihapus');
+  }
+}
+
+// =============================================
+//  HELPERS
+// =============================================
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// =============================================
+//  INIT / RENDER ALL
+// =============================================
+
+function renderAll() {
+  ['futsal', 'basket'].forEach(sport => {
+    renderTeamList(sport);
+    renderBracket(sport);
+    renderScoreboard(sport);
+
+    // Restore correct panel visibility
+    const hasBracket = state[sport].bracket.length > 0;
+    if (!hasBracket) {
+      showPanel(sport, 'teams');
+    } else {
+      showPanel(sport, 'bracket');
+    }
+  });
+}
+
+// ---- KEYBOARD SHORTCUT (Enter to add team) ----
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const focusedInput = document.activeElement;
+    if (focusedInput && focusedInput.classList.contains('input-field')) {
+      const id = focusedInput.id;
+      if (id.startsWith('futsal')) addTeam('futsal');
+      if (id.startsWith('basket')) addTeam('basket');
+    }
+  }
+});
+
+// =============================================
+//  BOOT
+// =============================================
+loadState();
+renderAll();
+
